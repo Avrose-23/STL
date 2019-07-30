@@ -1,0 +1,359 @@
+#pragma once
+#define _CRT_SECURE_NO_WARNINGS 1
+#include<vector>
+#include <algorithm>
+#include <assert.h>
+#include <string> 
+#include<iostream>	
+using namespace std;
+
+//vector核心接口的模拟实现
+namespace myself
+{
+	template<class T>
+	class vector
+	{
+	public:
+		typedef T* iterator;
+		typedef T* reverse_iterator;
+		typedef const T* ConstIterator;
+
+	public:
+		vector()       //无参构造
+			:_start(nullptr)
+			, _last(nullptr)
+			, _endofStorage(nullptr)
+		{ }
+
+		vector(size_t n, const T& data = T())   //n个值为data的元素,缺省构造
+			:_start(new T[n])
+			, _last(_start + n)
+			, _endofStorage(_last)
+		{
+			for (size_t i = 0; i < n; ++i)
+				_start[i] = data;
+
+		}
+
+		vector(T* first, T* last)    //必须给一段连续的空间 [first，last)
+		{
+			size_t size = last - first;
+			_start = new T[size];
+
+			for (size_t i = 0; i < size; ++i)
+				_start[i] = first[i];
+			//memcpy(_start, first, size * sizeof(T));
+			_last = _start + size;
+			_endofStorage = _last;
+		}
+
+		vector(const vector<T>& v)  //类类型对象的引用--->拷贝构造函数
+			:_start(nullptr)
+			, _last(nullptr)
+			, _endofStorage(nullptr)
+		{
+			reserve(v.capacity());  //开辟空间
+			iterator it = begin();
+			ConstIterator vit = v.cbegin();
+			while (vit != v.cend())
+			{
+				*it++ = *vit++;   //赋值
+			}
+			_last = _start + v.size();
+			_endofStorage = v.capacity() + _start;
+		}
+		vector<T>& operator=(const vector<T> v)  //赋值运算符重载
+		{
+			swap(_start, v._start);
+			return *this;
+			//注意深浅拷贝的问题
+		}
+
+		//----------------------迭代器操作--------------------// 
+		iterator begin()
+		{
+			return _start;
+		}
+		iterator end()
+		{
+			return _last;
+		}
+		ConstIterator cbegin() const
+		{
+			return _start;
+		}
+		ConstIterator cend() const
+		{
+			return _last;
+		}
+		reverse_iterator rbegin()
+		{
+			return end();
+		}
+		reverse_iterator rend()
+		{
+			return begin;
+		}
+
+		///////////////////容量操作capacity
+		size_t size()const
+		{
+			return _last - _start;
+		}
+		size_t capacity()const
+		{
+			return _endofStorage - _start;
+		}
+		bool empty()const
+		{
+			return _start == _last;
+		}
+		void resize(size_t newSize, const T& data = T())  //增加元素个数 
+		{
+			size_t oldSize = size();
+			if (newSize <= oldSize)   //减少元素个数
+				_last = _start + newSize;
+			else
+			{
+				size_t Capacity = capacity();
+				if (newSize <= Capacity)    //多出来的元素空间放得下
+				{
+					for (size_t i = oldSize; i < newSize; ++i)
+						*_last++ = data;
+				}
+				else   //多出来的元素空间放不下需要增容
+				{
+					T* pTemp = new T[newSize];
+					for (size_t i = 0; i < oldSize; ++i)   //旧元素
+						pTemp[i] = _start[i];
+					for (size_t i = oldSize; i < newSize; ++i)  //新元素
+						pTemp[i] = data;
+
+					delete[] _start;
+					_start = pTemp;
+					_last = _start + newSize;
+					_endofStorage = _last;
+				}
+			}
+		}
+
+		void reserve(size_t newcapacity)   //扩容
+		{
+			size_t oldcapacity = capacity();
+			if (newcapacity > oldcapacity)
+			{
+				size_t Size = size();
+				T* pTemp = new T[newcapacity];
+				if (_start)
+				{
+					for (size_t i = 0; i < size(); ++i)
+						pTemp[i] = _start[i];
+				}
+				_start = pTemp;
+				_last = _start + Size;
+				_endofStorage = _start + newcapacity;
+			}
+		}
+
+		T& operator[](size_t index)
+		{
+			return _start[index];
+		}
+		const T& operator[](size_t index)const
+		{
+			return _start[index];
+		}
+		T& front()
+		{
+			return *_start;
+		}
+		const T& front()const
+		{
+			return *_start;
+		}
+		T& back()
+		{
+			return *(_last - 1);
+		}
+		const T& back()const
+		{
+			return *(_last - 1);
+		}
+
+
+		void push_back(const T& data)
+		{
+			/*
+			if (size() == capacity())
+			reserve(capacity() * 2+2);
+			*_last++ = data;
+			*/
+			insert(end(), data);
+		}
+
+		void pop_back()
+		{
+			--_last;
+		}
+		iterator insert(iterator pos, const T& data)   //将data插在pos的位置，返回新插入元素的位置
+		{
+			assert(pos <= _last);
+			if (_last == _endofStorage)    //空间不够先增容
+			{
+				size_t NewCapacity = capacity() == 0 ? 1 : capacity() * 2 + 1;
+				reserve(NewCapacity);
+				pos = _start + size();  //扩容后需要重置迭代器(旧的已失效)
+			}
+			iterator End = _last - 1;
+			while (End >= pos)
+			{
+				*(End + 1) = *End;  //向后覆盖数据
+				--End;
+			}
+			*pos = data;
+			++_last;
+			return pos;
+		}
+
+		iterator erase(iterator pos)   //删除pos位置处的data值，返回删除数据的下一个数据
+		{
+			assert(pos <= _last);
+			iterator begin = pos + 1;
+			while (begin != _last)
+			{
+				*(begin - 1) = *begin;  //向前覆盖数据
+				begin++;
+			}
+			--_last;
+			return pos;
+		}
+		void swap(vector<T>& v)
+		{
+			swap(_start, v._start);
+			swap(_last, v._last);
+			swap(_endofStorage, v._endofStorage);
+		}
+		void clear()
+		{
+			_last = _start;
+		}
+		~vector()    //析构
+		{
+			if (_start)
+			{
+				delete[] _start;
+				_start = _last = _endofStorage = nullptr;
+			}
+		}
+	private:
+		iterator _start;   //指向数据块的开始  
+		iterator _last;    //指向有效数据的尾(size = _last - _start)
+		iterator _endofStorage;    //指向存储容量的尾(capacity)
+	};
+}
+void TestVector1()
+{
+	int arr[] = { 1,2,3,4,5,6,7,8,9,0 };
+	//myself::vector<int> v1(4, 100);
+	myself::vector<int> v2(arr, arr + sizeof(arr) / sizeof(arr[0]));
+	sort(v2.begin(), v2.end());//小到大
+	cout << v2[2];
+	//myself::vector<int> v3(v1);
+	//cout << v2.size() << endl;
+	//cout << v2.capacity() << endl;
+	//for (auto e : v1)
+		//cout << e << " ";
+	cout << endl;
+	for (auto it = v2.begin(); it != v2.end(); ++it)
+		cout << *it << " ";
+	cout << endl;
+	//for (auto it = v3.begin(); it != v3.end(); ++it)
+		//cout << *it << " ";
+	cout << endl;
+}
+
+void TestVector2()
+{
+	myself::vector<int> v;
+	v.push_back(1);
+	v.push_back(2);
+	v.push_back(3);
+	v.push_back(4);
+	
+
+	/*myself::vector<int>::iterator pos = find(v.begin(), v.end(), 3);
+	v.insert(pos, 30);
+	v.erase(pos);*/
+	/*
+	for (size_t i = 0; i < v.size(); ++i)
+	{
+	cout << v[i] << " ";
+	}
+	cout << endl;
+	*/
+
+	//myself::vector<int>::iterator it = v.begin();
+	//while (it != v.end())  //迭代器遍历打印
+	//{
+	//	cout << *it << " ";
+	//	++it;
+	//}
+	//cout << endl;
+}
+void TestVector3()
+{
+	int arr[] = { 1,2,3,4 };
+	myself::vector<int> v(arr, arr + sizeof(arr) / sizeof(arr[0]));
+	/*
+	v[0] = 5;
+	int a = v[0];
+	int b = v[1];
+	printf("%d %d\n",a, b);
+	*/
+	myself::vector<int>::iterator pos = find(v.begin(), v.end(), 3);
+	v.erase(pos);
+	cout << *pos << endl;
+}
+class Solution {
+public:
+	vector<int> maxInWindows(const vector<int>& num, unsigned int size)
+	{
+		vector<int> wd;
+
+		if (size>num.size())
+			return wd;
+		int sz = num.size() - size;
+		int begin = 0, end = begin + size;
+		for (int i = 0; i < sz; ++i) //滑动窗口个数
+		{
+			int sum = 0;
+			vector<int> ret;
+			for (int j = begin; j < end; j++) //每个滑动窗口的个数
+			{
+				ret.push_back(num[j]);
+			}
+			sort(ret.begin(), ret.end()); //排序找出每个滑动窗口的最大值
+			int val = ret[sz - 1];
+			wd.push_back(val);
+
+			begin++;
+			end++;
+		}
+		return wd;
+	}
+};
+int main()
+{
+	/*
+	Solution s;
+	int arr[] = { 2, 3, 4, 2, 5, 2, 6, 1 };
+	vector<int> v(arr, arr + sizeof(arr) / sizeof(arr[0]));
+	int sz = 3;
+	vector<int> ret = s.maxInWindows(v, sz);
+	*/
+	//TestVector2();
+	TestVector3();
+	//TestVector1();
+	//system("pause");
+	return 0;
+}
